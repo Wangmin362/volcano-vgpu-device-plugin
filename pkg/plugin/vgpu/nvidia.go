@@ -84,7 +84,9 @@ func NewMigDeviceManager(strategy MigStrategy, resource string) *MigDeviceManage
 }
 
 // Devices returns a list of devices from the GpuDeviceManager
+// 通过NVML调用底层驱动获取当前节点的设备信息
 func (g *GpuDeviceManager) Devices() []*Device {
+	// 通过NVML查询设备的数量
 	n, ret := config.Nvml().DeviceGetCount()
 	check(ret)
 	if n > util.DeviceLimit {

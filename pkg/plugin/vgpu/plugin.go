@@ -59,6 +59,25 @@ const (
 	deviceListAsVolumeMountsContainerPathRoot = "/var/run/nvidia-container-devices"
 )
 
+// NewNvidiaDevicePlugin returns an initialized NvidiaDevicePlugin
+func NewNvidiaDevicePlugin(resourceName string, deviceCache *DeviceCache, allocatePolicy gpuallocator.Policy, socket string, cfg *config.NvidiaConfig) *NvidiaDevicePlugin {
+	dp := &NvidiaDevicePlugin{
+		deviceCache:     deviceCache,
+		resourceName:    resourceName,
+		allocatePolicy:  allocatePolicy,
+		socket:          socket,
+		migStrategy:     "none",
+		operatingMode:   config.Mode,
+		schedulerConfig: cfg,
+		// These will be reinitialized every
+		// time the plugin server is restarted.
+		server: nil,
+		health: nil,
+		stop:   nil,
+	}
+	return dp
+}
+
 // NvidiaDevicePlugin implements the Kubernetes device plugin API
 type NvidiaDevicePlugin struct {
 	ResourceManager
@@ -79,25 +98,6 @@ type NvidiaDevicePlugin struct {
 	stop          chan interface{}
 	changed       chan struct{}
 	migStrategy   string
-}
-
-// NewNvidiaDevicePlugin returns an initialized NvidiaDevicePlugin
-func NewNvidiaDevicePlugin(resourceName string, deviceCache *DeviceCache, allocatePolicy gpuallocator.Policy, socket string, cfg *config.NvidiaConfig) *NvidiaDevicePlugin {
-	dp := &NvidiaDevicePlugin{
-		deviceCache:     deviceCache,
-		resourceName:    resourceName,
-		allocatePolicy:  allocatePolicy,
-		socket:          socket,
-		migStrategy:     "none",
-		operatingMode:   config.Mode,
-		schedulerConfig: cfg,
-		// These will be reinitialized every
-		// time the plugin server is restarted.
-		server: nil,
-		health: nil,
-		stop:   nil,
-	}
-	return dp
 }
 
 // NewNvidiaDevicePlugin returns an initialized NvidiaDevicePlugin

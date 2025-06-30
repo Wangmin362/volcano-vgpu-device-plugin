@@ -11,6 +11,8 @@ This is based on [Nvidia Device Plugin](https://github.com/NVIDIA/k8s-device-plu
 
 And collaborate with volcano, it is possible to enable GPU sharing.
 
+简单来说，其实就是配合volcano，实现了GPU的共享。
+
 ## Table of Contents
 
 - [About](#about)

@@ -59,6 +59,7 @@ func (d *DeviceCache) RemoveNotifyChannel(name string) {
 }
 
 func (d *DeviceCache) Start() {
+	// 通过NVML调用底层驱动获取当前节点的设备信息
 	d.cache = d.Devices()
 	go d.CheckHealth(d.stopCh, d.cache, d.unhealthy)
 	go d.notify()
@@ -78,6 +79,7 @@ func (d *DeviceCache) notify() {
 		case <-d.stopCh:
 			return
 		case dev := <-d.unhealthy:
+			// 如果一个设备不健康了，那么需要通知device-plugin，让Kubelet实时感知设备的变化
 			dev.Health = pluginapi.Unhealthy
 			d.mutex.Lock()
 			for _, ch := range d.notifyCh {

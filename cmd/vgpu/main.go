@@ -63,9 +63,13 @@ func init() {
 	rootCmd.Flags().SortFlags = false
 	rootCmd.PersistentFlags().SortFlags = false
 
+	// MIG策略，MIG支持none | single | mixed
 	rootCmd.Flags().StringVar(&migStrategyFlag, "mig-strategy", "none", "the desired strategy for exposing MIG devices on GPUs that support it:\n\t\t[none | single | mixed]")
+	// 初始化错误时是否直接退出
 	rootCmd.Flags().BoolVar(&failOnInitErrorFlag, "fail-on-init-error", true, "fail the plugin if an error is encountered during initialization, otherwise block indefinitely")
+	// GPU的切分
 	rootCmd.Flags().UintVar(&config.DeviceSplitCount, "device-split-count", 2, "the number for NVIDIA device split")
+	// TODO 下面两个参数用来干嘛的
 	rootCmd.Flags().UintVar(&config.GPUMemoryFactor, "gpu-memory-factor", 1, "the default gpu memory block size is 1MB")
 	rootCmd.Flags().Float64Var(&config.DeviceCoresScaling, "device-cores-scaling", 1.0, "the ratio for NVIDIA device cores scaling")
 	rootCmd.Flags().StringVar(&config.NodeName, "node-name", viper.GetString("node-name"), "node name")
@@ -81,6 +85,7 @@ func start() error {
 	}()
 
 	klog.Info("Loading NVML")
+	// 加载NVML库，本质上就是调用底层驱动
 	if nvret := config.Nvml().Init(); nvret != nvml.SUCCESS {
 		klog.Infof("Failed to initialize NVML: %v.", nvret)
 		klog.Infof("If this is a GPU node, did you set the docker default runtime to `nvidia`?")
@@ -95,6 +100,7 @@ func start() error {
 	defer func() { klog.Info("Shutdown of NVML returned:", config.Nvml().Shutdown()) }()
 
 	klog.Info("Starting FS watcher.")
+	// 监听/var/lib/kubelet/device-plugins/目录下的文件变化
 	watcher, err := NewFSWatcher(pluginapi.DevicePluginPath)
 	if err != nil {
 		return fmt.Errorf("failed to create FS watcher: %v", err)
@@ -104,6 +110,7 @@ func start() error {
 	klog.Info("Starting OS watcher.")
 	sigs := NewOSWatcher(syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
+	// 加载kube-system/volcano-vgpu-device-config配置文件
 	nvidiaCfg := util.LoadNvidiaConfig()
 
 	cache := nvidiadevice.NewDeviceCache()

@@ -543,6 +543,7 @@ func ExtractMigTemplatesFromUUID(uuid string) (string, int, error) {
 	return templateGroupName, pos, nil
 }
 
+// 主要适用于覆盖英伟达的某些配置
 func LoadNvidiaConfig() *config.NvidiaConfig {
 	configs, err := LoadConfigFromCM("volcano-vgpu-device-config")
 	if err != nil {
