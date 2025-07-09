@@ -45,6 +45,7 @@ func NewDeviceRegister(deviceCache *DeviceCache) *DeviceRegister {
 
 func (r *DeviceRegister) Start() {
 	r.deviceCache.AddNotifyChannel("register", r.unhealthy)
+	// 向节点注册设备信息，以及握手信息
 	go r.WatchAndRegister()
 }
 
@@ -90,6 +91,7 @@ func (r *DeviceRegister) apiDevices() *[]*util.DeviceInfo {
 	return &res
 }
 
+// 向节点注册设备信息
 func (r *DeviceRegister) RegisterInAnnotation() error {
 	devices := r.apiDevices()
 	annos := make(map[string]string)
@@ -110,6 +112,7 @@ func (r *DeviceRegister) RegisterInAnnotation() error {
 	return err
 }
 
+// 向节点注册设备信息，以及握手信息
 func (r *DeviceRegister) WatchAndRegister() {
 	klog.Infof("into WatchAndRegister")
 	for {
@@ -118,6 +121,7 @@ func (r *DeviceRegister) WatchAndRegister() {
 			time.Sleep(time.Second * 2)
 			continue
 		}
+		// 向节点注册设备信息
 		err := r.RegisterInAnnotation()
 		if err != nil {
 			klog.Errorf("register error, %v", err)

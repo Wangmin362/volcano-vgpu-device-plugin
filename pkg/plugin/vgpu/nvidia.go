@@ -107,6 +107,7 @@ func (g *GpuDeviceManager) Devices() []*Device {
 			}
 		}
 
+		// 如果当前芯片支持MIG，但是用户没有启用MIG，直接退出
 		if migMode == nvml.DEVICE_MIG_ENABLE && g.skipMigEnabledGPUs {
 			continue
 		}
@@ -136,6 +137,7 @@ func (g *GpuDeviceManager) Devices() []*Device {
 }
 
 // Devices returns a list of devices from the MigDeviceManager
+// 调用底层NVML接口获取MIG设备信息
 func (m *MigDeviceManager) Devices() []*Device {
 	n, ret := config.Nvml().DeviceGetCount()
 	check(ret)

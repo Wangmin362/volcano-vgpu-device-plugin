@@ -65,19 +65,19 @@ func (s *migStrategyNone) GetPlugins(cfg *config.NvidiaConfig, cache *DeviceCach
 	return []*NvidiaDevicePlugin{
 		NewNvidiaDevicePlugin(
 			//"nvidia.com/gpu",
-			util.ResourceName,
+			util.ResourceName, // volcano.sh/vgpu-number
 			cache,
 			gpuallocator.NewBestEffortPolicy(),
 			pluginapi.DevicePluginPath+"nvidia-gpu.sock",
 			cfg),
 		NewNvidiaDevicePlugin(
-			util.ResourceMem,
+			util.ResourceMem, // volcano.sh/vgpu-memory
 			cache,
 			gpuallocator.NewBestEffortPolicy(),
 			pluginapi.DevicePluginPath+"nvidia-gpu-memory.sock",
 			cfg),
 		NewNvidiaDevicePlugin(
-			util.ResourceCores,
+			util.ResourceCores, // volcano.sh/vgpu-cores
 			cache,
 			gpuallocator.NewBestEffortPolicy(),
 			pluginapi.DevicePluginPath+"nvidia-gpu-cores.sock",

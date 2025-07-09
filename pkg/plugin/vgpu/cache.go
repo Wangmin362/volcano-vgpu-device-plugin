@@ -33,6 +33,7 @@ type DeviceCache struct {
 	mutex     sync.Mutex
 }
 
+// 通过调用底层NVML驱动，维护设别相关信息
 func NewDeviceCache() *DeviceCache {
 	skipMigEnabledGPUs := true
 	if config.Mode == "mig" {

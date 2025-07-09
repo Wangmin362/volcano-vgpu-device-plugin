@@ -110,13 +110,15 @@ func start() error {
 	klog.Info("Starting OS watcher.")
 	sigs := NewOSWatcher(syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	// 加载kube-system/volcano-vgpu-device-config配置文件
+	// 加载kube-system/volcano-vgpu-device-config配置文件，如果没有加载volcano-system/volcano-vgpu-device-config配置文件
 	nvidiaCfg := util.LoadNvidiaConfig()
 
+	// 通过调用底层NVML驱动，维护设别相关信息
 	cache := nvidiadevice.NewDeviceCache()
 	cache.Start()
 	defer cache.Stop()
 
+	// 向节点注册设备信息，以及握手信息
 	register := nvidiadevice.NewDeviceRegister(cache)
 	register.Start()
 	defer register.Stop()
