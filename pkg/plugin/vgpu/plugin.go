@@ -146,6 +146,7 @@ func (m *NvidiaDevicePlugin) Start() error {
 		return err
 	}
 
+	// 启动GRPC服务，简单来说就是启动DevicePlugin
 	err = m.Serve()
 	if err != nil {
 		log.Printf("Could not start device plugin for '%s': %s", m.resourceName, err)
@@ -154,6 +155,7 @@ func (m *NvidiaDevicePlugin) Start() error {
 	}
 	log.Printf("Starting to serve '%s' on %s", m.resourceName, m.socket)
 
+	// GRPC服务启动之后，向kubelet注册服务
 	err = m.Register()
 	if err != nil {
 		log.Printf("Could not register device plugin: %s", err)
@@ -268,6 +270,7 @@ func (m *NvidiaDevicePlugin) Stop() error {
 }
 
 // Serve starts the gRPC server of the device plugin.
+// 启动GRPC服务，简单来说就是启动DevicePlugin
 func (m *NvidiaDevicePlugin) Serve() error {
 	os.Remove(m.socket)
 	sock, err := net.Listen("unix", m.socket)
@@ -275,6 +278,7 @@ func (m *NvidiaDevicePlugin) Serve() error {
 		return err
 	}
 
+	// 注册GRPC服务
 	pluginapi.RegisterDevicePluginServer(m.server, m)
 
 	go func() {
@@ -282,6 +286,7 @@ func (m *NvidiaDevicePlugin) Serve() error {
 		restartCount := 0
 		for {
 			log.Printf("Starting GRPC server for '%s'", m.resourceName)
+			// 启动GRPC服务
 			err := m.server.Serve(sock)
 			if err == nil {
 				break
@@ -308,6 +313,7 @@ func (m *NvidiaDevicePlugin) Serve() error {
 	}()
 
 	// Wait for server to start by launching a blocking connexion
+	// 等待GRPC服务启动
 	conn, err := m.dial(m.socket, 5*time.Second)
 	if err != nil {
 		return err
@@ -414,6 +420,7 @@ func (m *NvidiaDevicePlugin) MIGAllocate(ctx context.Context, reqs *pluginapi.Al
 
 // Allocate which return list of devices.
 func (m *NvidiaDevicePlugin) Allocate(ctx context.Context, reqs *pluginapi.AllocateRequest) (*pluginapi.AllocateResponse, error) {
+	// 只允许一个容器申请资源
 	if len(reqs.ContainerRequests) > 1 {
 		return &pluginapi.AllocateResponse{}, errors.New("multiple Container Requests not supported")
 	}

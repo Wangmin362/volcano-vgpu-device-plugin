@@ -62,6 +62,7 @@ func (d *DeviceCache) RemoveNotifyChannel(name string) {
 func (d *DeviceCache) Start() {
 	// 通过NVML调用底层驱动获取当前节点的设备信息
 	d.cache = d.Devices()
+	// TODO 这里因该是在做健康检测，如果设备的健康状态发生变化了，此时需要通过ListAndWatch接口通知Kubelet
 	go d.CheckHealth(d.stopCh, d.cache, d.unhealthy)
 	go d.notify()
 }

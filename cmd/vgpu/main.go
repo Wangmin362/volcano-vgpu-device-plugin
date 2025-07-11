@@ -47,6 +47,7 @@ var (
 	}
 )
 
+// 节点配置，用于配置设备显存超配比，TimeSlice，以及MIG策略
 type devicePluginConfigs struct {
 	Nodeconfig []struct {
 		Name                string  `json:"name"`
@@ -110,10 +111,11 @@ func start() error {
 	klog.Info("Starting OS watcher.")
 	sigs := NewOSWatcher(syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
-	// 加载kube-system/volcano-vgpu-device-config配置文件，如果没有加载volcano-system/volcano-vgpu-device-config配置文件
+	// 1. 加载kube-system/volcano-vgpu-device-config配置文件，如果没有加载volcano-system/volcano-vgpu-device-config配置文件
+	// 2. 主要是配置英伟达上报的资源名，显存名，显存超分，算力超分，MIG模板等等
 	nvidiaCfg := util.LoadNvidiaConfig()
 
-	// 通过调用底层NVML驱动，维护设别相关信息
+	// 通过调用底层NVML驱动，维护设备相关信息
 	cache := nvidiadevice.NewDeviceCache()
 	cache.Start()
 	defer cache.Stop()
@@ -135,6 +137,7 @@ restart:
 	if err != nil {
 		return fmt.Errorf("error creating MIG strategy: %v", err)
 	}
+	// TODO 根据MIG策略的不同获取对应的DevicePlugin
 	plugins = migStrategy.GetPlugins(nvidiaCfg, cache)
 
 	started := 0

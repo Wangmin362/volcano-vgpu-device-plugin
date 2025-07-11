@@ -113,6 +113,8 @@ func (g *GpuDeviceManager) Devices() []*Device {
 		}
 
 		// Auto ebale MIG mode when the plugin is running in MIG mode
+		// 设置芯片启用MIG模式，英伟达的芯片在使用MIG之前需要启用MIG
+		// TODO 启用了MIG的卡，但是没有创建任何MIG实例的芯片可以当成一个整卡使用么？
 		if config.Mode == "mig" && migMode != nvml.DEVICE_MIG_ENABLE {
 			if ret == nvml.ERROR_NOT_SUPPORTED {
 				klog.V(4).Infof("Node is configed as MIG mode, but GPU %v does not support MIG mode", i)
@@ -125,6 +127,7 @@ func (g *GpuDeviceManager) Devices() []*Device {
 			}
 		}
 
+		// 通过NVML调用底层驱动获取芯片信息
 		dev, err := buildDevice(fmt.Sprintf("%v", i), d)
 		if err != nil {
 			log.Panicln("Fatal:", err)
@@ -189,6 +192,7 @@ func (m *MigDeviceManager) CheckHealth(stop <-chan interface{}, devices []*Devic
 	checkHealth(stop, devices, unhealthy)
 }
 
+// 通过NVML调用底层驱动获取芯片信息
 func buildDevice(index string, d nvml.Device) (*Device, error) {
 	uuid, ret := config.Nvml().DeviceGetUUID(d)
 	if ret != nvml.SUCCESS {

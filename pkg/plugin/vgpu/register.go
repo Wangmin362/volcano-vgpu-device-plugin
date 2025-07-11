@@ -44,6 +44,7 @@ func NewDeviceRegister(deviceCache *DeviceCache) *DeviceRegister {
 }
 
 func (r *DeviceRegister) Start() {
+	// 注册设备健康状态变化接口
 	r.deviceCache.AddNotifyChannel("register", r.unhealthy)
 	// 向节点注册设备信息，以及握手信息
 	go r.WatchAndRegister()
@@ -93,6 +94,7 @@ func (r *DeviceRegister) apiDevices() *[]*util.DeviceInfo {
 
 // 向节点注册设备信息
 func (r *DeviceRegister) RegisterInAnnotation() error {
+	// 获取当前节点所有设备
 	devices := r.apiDevices()
 	annos := make(map[string]string)
 	node, err := util.GetNode(config.NodeName)
