@@ -379,6 +379,30 @@ func (m *NvidiaDevicePlugin) Allocate(ctx context.Context, reqs *pluginapi.Alloc
 		return &pluginapi.AllocateResponse{}, errors.New("no pending pod found on node")
 	}
 
+	// Safety validation: Ensure pod's assigned node matches the current node
+	//
+	// This validation prevents device injection errors in concurrent scenarios:
+	//
+	// Scenario: Two pods scheduled to different nodes simultaneously
+	// 1. Volcano scheduler assigns Pod A to node1, writes vgpu-node=node1 annotation
+	// 2. Volcano scheduler assigns Pod B to node2, writes vgpu-node=node2 annotation
+	// 3. Due to timing issues, GetPendingPod() on node1 might incorrectly pick up Pod B
+	// 4. Without validation, node1's device plugin would inject Pod B's devices into Pod A
+	// 5. Pod A's containers would fail with "unknown device" error
+	//
+	// By validating that the pod's assigned node annotation matches the current node,
+	// we ensure each node only allocates devices for pods actually scheduled to it.
+	if current.Annotations != nil {
+		assignedNode := current.Annotations[util.AssignedNodeAnnotations]
+		if assignedNode != "" && assignedNode != nodename {
+			klog.Errorf("Pod %s assigned node %s != current node %s",
+				current.Name, assignedNode, nodename)
+			lock.ReleaseNodeLock(nodename, util.VGPUDeviceName)
+			return &pluginapi.AllocateResponse{},
+				fmt.Errorf("pod assigned to different node: %s vs %s", assignedNode, nodename)
+		}
+	}
+
 	for idx := range reqs.ContainerRequests {
 		currentCtr, devreq, err := util.GetNextDeviceRequest(util.NvidiaGPUDevice, *current)
 		klog.Infoln("deviceAllocateFromAnnotation=", devreq)
@@ -392,6 +416,44 @@ func (m *NvidiaDevicePlugin) Allocate(ctx context.Context, reqs *pluginapi.Alloc
 			util.PodAllocationFailed(nodename, current)
 			return &pluginapi.AllocateResponse{}, errors.New("device number not matched")
 		}
+
+		// Critical validation: Verify all devices in pod annotation belong to the current node
+		//
+		// This prevents a critical bug where device annotations from one node get
+		// applied to containers on a different node, causing "unknown device" errors.
+		//
+		// Root cause analysis:
+		// - Volcano scheduler allocates devices and writes GPU UUIDs to pod annotations
+		// - Device allocation and pod binding happen in parallel goroutines
+		// - GetPendingPod() lists all pods cluster-wide, not filtered by node
+		// - Without validation, wrong pod might be selected in concurrent scenarios
+		//
+		// Example failure scenario:
+		// Node has GPUs: GPU-001, GPU-002
+		// Pod annotations contain: GPU-101, GPU-102 (from different node)
+		// Result: Container fails with "nvidia-container-cli: GPU-101: unknown device"
+		//
+		// Validation approach:
+		// 1. Get list of all physical devices present on the current node
+		// 2. Build a set of valid device UUIDs for quick lookup
+		// 3. Verify each device in the pod annotation exists on this node
+		// 4. Reject the allocation if any device is not found locally
+		localDevices := m.Devices()
+		localDeviceUUIDs := make(map[string]bool)
+		for _, dev := range localDevices {
+			localDeviceUUIDs[dev.GetUUID()] = true
+		}
+
+		for _, dev := range devreq {
+			if !localDeviceUUIDs[dev.UUID] {
+				klog.Errorf("Device %s in pod annotation does not belong to node %s", dev.UUID, nodename)
+				util.PodAllocationFailed(nodename, current)
+				lock.ReleaseNodeLock(nodename, util.VGPUDeviceName)
+				return &pluginapi.AllocateResponse{},
+					fmt.Errorf("device %s does not belong to node %s", dev.UUID, nodename)
+			}
+		}
+		klog.Infof("All %d devices validated for node %s", len(devreq), nodename)
 
 		response := pluginapi.ContainerAllocateResponse{}
 		response.Envs = make(map[string]string)

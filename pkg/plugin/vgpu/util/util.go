@@ -78,27 +78,77 @@ func GetPendingPod(node string) (*v1.Pod, error) {
 	return oldestPod, nil
 }
 
+// getOldestPod finds the oldest pending pod that is assigned to the specified node.
+// It searches through pods with vgpu-node annotations and returns the one with the
+// earliest allocation timestamp.
+//
+// This function includes two critical safety validations to prevent device allocation errors:
+// 1. Node matching validation: Ensures the pod's actual nodeName matches the annotation
+// 2. Initialization fix: Prevents returning pods destined for different nodes
 func getOldestPod(pods []v1.Pod, nodename string) *v1.Pod {
 	if len(pods) == 0 {
 		return nil
 	}
-	oldest := pods[0]
+
+	// Critical fix: Initialize oldest to nil instead of pods[0]
+	//
+	// Previously, initializing `oldest = pods[0]` could cause the function to return
+	// a pod destined for a different node if that pod happened to be first in the list.
+	// This led to device injection errors where containers received GPU devices from
+	// a different node than the one they were scheduled on.
+	//
+	// Example scenario:
+	// - Pod A scheduled to node1, appears first in list
+	// - Pod B scheduled to node2, we're looking for node2's pod
+	// - Old code: Returns Pod A (wrong node) -> devices don't exist on node2
+	// - New code: Skips Pod A, returns Pod B (correct node)
+	var oldest *v1.Pod = nil
+
 	for _, pod := range pods {
+		// Only consider pods that are actually assigned to this node via annotation
 		if pod.Annotations[AssignedNodeAnnotations] == nodename {
-			klog.V(4).Infof("pod %s, predicate time: %s", pod.Name, pod.Annotations[AssignedTimeAnnotations])
-			if getPredicateTimeFromPodAnnotation(&oldest) > getPredicateTimeFromPodAnnotation(&pod) {
-				oldest = pod
+			if oldest == nil {
+				oldest = &pod
+			} else {
+				klog.V(4).Infof("pod %s, predicate time: %s", pod.Name, pod.Annotations[AssignedTimeAnnotations])
+				if getPredicateTimeFromPodAnnotation(oldest) > getPredicateTimeFromPodAnnotation(&pod) {
+					oldest = &pod
+				}
 			}
 		}
 	}
+
+	if oldest == nil {
+		klog.Warningf("No pod found with AssignedNodeAnnotations=%s in %d pods", nodename, len(pods))
+		return nil
+	}
+
 	klog.V(4).Infof("oldest pod %#v, predicate time: %#v", oldest.Name,
 		oldest.Annotations[AssignedTimeAnnotations])
+
+	// Critical validation: Ensure pod's actual nodeName matches the assigned node annotation
+	//
+	// This prevents a race condition where:
+	// 1. Scheduler assigns pod to node X and writes vgpu-node=X annotation
+	// 2. Before binding completes, device plugin on node Y calls GetPendingPod()
+	// 3. Without this check, node Y might try to allocate devices for pod destined for node X
+	//
+	// The spec.nodeName field is only set after the pod is actually bound to a node,
+	// so we only validate if it's non-empty (already bound).
+	if oldest.Spec.NodeName != "" && oldest.Spec.NodeName != nodename {
+		klog.Warningf("Pod %s spec.nodeName=%s != annotation node=%s, skipping",
+			oldest.Name, oldest.Spec.NodeName, nodename)
+		return nil
+	}
+
+	// Mark this pod as being processed by updating its timestamp to MaxUint64
+	// This prevents concurrent device plugin calls from processing the same pod
 	annotation := map[string]string{AssignedTimeAnnotations: strconv.FormatUint(math.MaxUint64, 10)}
-	if err := PatchPodAnnotations(&oldest, annotation); err != nil {
+	if err := PatchPodAnnotations(oldest, annotation); err != nil {
 		klog.Errorf("update pod %s failed, err: %v", oldest.Name, err)
 		return nil
 	}
-	return &oldest
+	return oldest
 }
 
 func getPredicateTimeFromPodAnnotation(pod *v1.Pod) uint64 {
